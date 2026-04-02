@@ -1,0 +1,8 @@
+torch==2.2.0
+numpy==1.26.1
+pyscf==2.6.2
+ase==3.21.0
+ruamel.yaml==0.17.21
+paramiko==4.0.0
+numpy==1.26.1
+
