@@ -1,0 +1,385 @@
+#!/bin/bash
+
+# aopt : amesp's geometry optimization monitor.
+
+# Get total optimization steps.
+get_opt_step(){
+    steps=$(grep -c "Geometry Convergence:" "$1")
+    echo "$steps"
+}
+
+# Test aop file.
+test_aop(){
+    filesize=$(stat -c %s "$1" 2>&1 | tr -d '\n')
+    if [ "${filesize:0:4}" == "stat" ] ;then
+        echo -e "\033[31m${filesize##*"stat: "}\033[0m" >&2
+        exit 1
+    elif [ "$filesize" == 0 ] ;then
+        echo -e "\033[31mfile $1 is empty!\033[0m" >&2
+        exit 1
+    fi
+    is_opt_task=$(grep "Geometry Optimization" "$1")
+    if [ -z "$is_opt_task" ] ;then
+        echo -e "\033[31mNot an optimization task!\033[0m"
+        exit 1
+    else
+        steps=$(get_opt_step "$1")
+        if [ "$steps" == 0 ] ;then
+            echo -e "\033[31mNo optimization step found!\033[0m" >&2
+            exit 1
+        else
+            echo -e "\033[36mTotal optimization steps: $steps\033[0m"
+        fi
+    fi
+}
+
+# Test aop file, without colors.
+test_aop_wb(){
+    filesize=$(stat -c %s "$1" 2>&1 | tr -d '\n')
+    if [ "${filesize:0:4}" == "stat" ] ;then
+        echo -e "${filesize##*"stat: "}" >&2
+        exit 1
+    elif [ "$filesize" == 0 ] ;then
+        echo -e "file $1 is empty!" >&2
+        exit 1
+    fi
+    is_opt_task=$(grep "Geometry Optimization" "$1")
+    if [ -z "$is_opt_task" ] ;then
+        echo -e "Not an optimization task!"
+        exit 1
+    else
+        steps=$(get_opt_step "$1")
+        if [ "$steps" == 0 ] ;then
+            echo -e "No optimization step found!" >&2
+            exit 1
+        else
+            echo -e "36mTotal optimization steps: $steps"
+        fi
+    fi
+}
+
+# Extract information from aop file.
+extract_info(){
+    steps=$(get_opt_step "$1")
+    curr_enegry=()
+    while IFS='' read -r line; do
+        curr_enegry+=("$line");
+    done < <(grep "Current Energy" "$1" | awk '{printf($4"\n")}')
+    delta_energy=()
+    while IFS='' read -r line; do
+        delta_energy+=("$line");
+    done < <(grep "Energy Change" "$1" | awk '{printf($4"\n")}')
+    rms_step=()
+    while IFS='' read -r line; do
+        rms_step+=("$line");
+    done < <(grep "RMS Step" "$1" | awk '{printf($3"\n")}')
+    max_step=()
+    while IFS='' read -r line; do
+        max_step+=("$line");
+    done < <(grep "Max Step" "$1" | awk '{printf($3"\n")}')
+    rms_force=()
+    while IFS='' read -r line; do
+        rms_force+=("$line");
+    done < <(grep "RMS Force" "$1" | awk '{printf($3"\n")}')
+    max_force=()
+    while IFS='' read -r line; do
+        max_force+=("$line");
+    done < <(grep "Max Force" "$1" | awk '{printf($3"\n")}')
+    rms_step_conv=()
+    while IFS='' read -r line; do
+        rms_step_conv+=("$line");
+    done < <(grep "RMS Step" "$1" | awk '{printf($5"\n")}')
+    max_step_conv=()
+    while IFS='' read -r line; do
+        max_step_conv+=("$line");
+    done < <(grep "Max Step" "$1" | awk '{printf($5"\n")}')
+    rms_force_conv=()
+    while IFS='' read -r line; do
+        rms_force_conv+=("$line");
+    done < <(grep "RMS Force" "$1" | awk '{printf($5"\n")}')
+    max_force_conv=()
+    while IFS='' read -r line; do
+        max_force_conv+=("$line");
+    done < <(grep "Max Force" "$1" | awk '{printf($5"\n")}')
+    echo -e "\033[33m\c"
+    printf '%-5s%12s%15s%15s%15s%15s\n' "Step" "deltaE" "RMS Force" \
+        "Max Force" "RMS Step" "Max Step"
+    echo -e "\033[0m\c"
+    for ((i=0; i<"$steps"; i++))
+    do
+        echo -e "\033[33m\c"
+        printf '%-5d' "$((i+1))"
+        echo -e "\033[0m\c"
+        if [[ "$i" -eq 0 ]] ;then
+            echo -e "\033[36m\c"
+        elif [[ $(echo "${delta_energy[i]} > 0" | bc) -eq 1 ]];
+        then
+            echo -e "\033[31m\c"
+        else
+            echo -e "\033[32m\c"
+        fi
+        printf '%13.7f' "${delta_energy[i]}"
+        echo -e "\033[0m\c"
+
+        if [[ "$i" -eq 0 ]] ;then
+            echo -e "\033[36m\c"
+        elif [[ $(echo "${rms_force[i]} > ${rms_force[$((i-1))]}" | bc) -eq 1 ]];
+        then
+            echo -e "\033[31m\c"
+        else
+            echo -e "\033[32m\c"
+        fi
+        printf '%13.7f' "${rms_force[i]}"
+        echo -e "\033[0m\c"
+
+        if [[ "${rms_force_conv[i]}" == "NO" ]] ;then
+            echo -e "\033[31m $SYM_NO\033[0m\c"
+        else
+            echo -e "\033[32m $SYM_YES\033[0m\c"
+        fi
+
+        if [[ "$i" -eq 0 ]] ;then
+            echo -e "\033[36m\c"
+        elif [[ $(echo "${max_force[i]} > ${max_force[$((i-1))]}" | bc) -eq 1 ]];
+        then
+            echo -e "\033[31m\c"
+        else
+            echo -e "\033[32m\c"
+        fi
+        printf '%13.7f' "${max_force[i]}"
+        echo -e "\033[0m\c"
+
+        if [[ "${max_force_conv[i]}" == "NO" ]] ;then
+            echo -e "\033[31m $SYM_NO\033[0m\c"
+        else
+            echo -e "\033[32m $SYM_YES\033[0m\c"
+        fi
+
+        if [[ "$i" -eq 0 ]] ;then
+            echo -e "\033[36m\c"
+        elif [[ $(echo "${rms_step[i]} > ${rms_step[$((i-1))]}" | bc) -eq 1 ]];
+        then
+            echo -e "\033[31m\c"
+        else
+            echo -e "\033[32m\c"
+        fi
+        printf '%13.7f' "${rms_step[i]}"
+        echo -e "\033[0m\c"
+
+        if [[ "${rms_step_conv[i]}" == "NO" ]] ;then
+            echo -e "\033[31m $SYM_NO\033[0m\c"
+        else
+            echo -e "\033[32m $SYM_YES\033[0m\c"
+        fi
+
+        if [[ "$i" -eq 0 ]] ;then
+            echo -e "\033[36m\c"
+        elif [[ $(echo "${max_step[i]} > ${max_step[$((i-1))]}" | bc) -eq 1 ]];
+        then
+            echo -e "\033[31m\c"
+        else
+            echo -e "\033[32m\c"
+        fi
+        printf '%13.7f' "${max_step[i]}"
+        echo -e "\033[0m\c"
+
+        if [[ "${max_step_conv[i]}" == "NO" ]] ;then
+            echo -e "\033[31m $SYM_NO \033[0m\c"
+        else
+            echo -e "\033[32m $SYM_YES \033[0m\c"
+        fi
+
+        printf "\n"
+    done
+    if [ "$2" == 1 ] ;then
+        rm -f currE deltaE rms_force max_force max_step rms_step
+        for ((i=0; i<"$steps"; i++))
+        do
+            echo "${curr_enegry[i]}"  >> currE
+            echo "${delta_energy[i]}" >> deltaE
+            echo "${rms_force[i]}"    >> rms_force
+            echo "${max_force[i]}"    >> max_force
+            echo "${max_step[i]}"     >> max_step
+            echo "${rms_step[i]}"     >> rms_step
+        done
+        echo
+        echo -e "\033[32mFiles written!\033[0m"
+    fi
+}
+
+# Extract information from aop file, with out colors.
+extract_info_wb(){
+    steps=$(get_opt_step "$1")
+    curr_enegry=()
+    while IFS='' read -r line; do
+        curr_enegry+=("$line");
+    done < <(grep "Current Energy" "$1" | awk '{printf($4"\n")}')
+    delta_energy=()
+    while IFS='' read -r line; do
+        delta_energy+=("$line");
+    done < <(grep "Energy Change" "$1" | awk '{printf($4"\n")}')
+    rms_step=()
+    while IFS='' read -r line; do
+        rms_step+=("$line");
+    done < <(grep "RMS Step" "$1" | awk '{printf($3"\n")}')
+    max_step=()
+    while IFS='' read -r line; do
+        max_step+=("$line");
+    done < <(grep "Max Step" "$1" | awk '{printf($3"\n")}')
+    rms_force=()
+    while IFS='' read -r line; do
+        rms_force+=("$line");
+    done < <(grep "RMS Force" "$1" | awk '{printf($3"\n")}')
+    max_force=()
+    while IFS='' read -r line; do
+        max_force+=("$line");
+    done < <(grep "Max Force" "$1" | awk '{printf($3"\n")}')
+    rms_step_conv=()
+    while IFS='' read -r line; do
+        rms_step_conv+=("$line");
+    done < <(grep "RMS Step" "$1" | awk '{printf($5"\n")}')
+    max_step_conv=()
+    while IFS='' read -r line; do
+        max_step_conv+=("$line");
+    done < <(grep "Max Step" "$1" | awk '{printf($5"\n")}')
+    rms_force_conv=()
+    while IFS='' read -r line; do
+        rms_force_conv+=("$line");
+    done < <(grep "RMS Force" "$1" | awk '{printf($5"\n")}')
+    max_force_conv=()
+    while IFS='' read -r line; do
+        max_force_conv+=("$line");
+    done < <(grep "Max Force" "$1" | awk '{printf($5"\n")}')
+    printf '%-5s%12s%15s%15s%15s%15s\n' "Step" "deltaE" "RMS Force" \
+        "Max Force" "RMS Step" "Max Step"
+    for ((i=0; i<"$steps"; i++))
+    do
+        printf '%-5d' "$((i+1))"
+        printf '%13.7f' "${delta_energy[i]}"
+        printf '%13.7f' "${rms_force[i]}"
+        if [[ "${rms_force_conv[i]}" == "NO" ]] ;then
+            echo -e " $SYM_NO\c"
+        else
+            echo -e " $SYM_YES\c"
+        fi
+        printf '%13.7f' "${max_force[i]}"
+        if [[ "${max_force_conv[i]}" == "NO" ]] ;then
+            echo -e " $SYM_NO\c"
+        else
+            echo -e " $SYM_YES\c"
+        fi
+        printf '%13.7f' "${rms_step[i]}"
+        if [[ "${rms_step_conv[i]}" == "NO" ]] ;then
+            echo -e " $SYM_NO\c"
+        else
+            echo -e " $SYM_YES\c"
+        fi
+        printf '%13.7f' "${max_step[i]}"
+        if [[ "${max_step_conv[i]}" == "NO" ]] ;then
+            echo -e " $SYM_NO \c"
+        else
+            echo -e " $SYM_YES \c"
+        fi
+        echo
+    done
+    if [ "$2" == 1 ] ;then
+        rm -f currE deltaE rms_force max_force max_step rms_step
+        for ((i=0; i<"$steps"; i++))
+        do
+            echo "${curr_enegry[i]}"  >> currE
+            echo "${delta_energy[i]}" >> deltaE
+            echo "${rms_force[i]}"    >> rms_force
+            echo "${max_force[i]}"    >> max_force
+            echo "${max_step[i]}"     >> max_step
+            echo "${rms_step[i]}"     >> rms_step
+        done
+        echo
+        echo -e "Files written!"
+    fi
+}
+
+# Main
+main() {
+    # print banner first
+    echo
+    printf "%61s\n" "aopt : amesp's geometry optimization monitor"
+    echo
+    if [ -z "$1" ] ;then
+        echo "Usage: aopt [[-i] <aop file>] [OPTION]..."
+        echo "try \`aopt -h' for for more information."
+        exit 0
+    else
+        while getopts "i:lcwah" opt; do
+            flag=1
+            case "${opt}" in
+            i)
+                filename=${OPTARG}
+                ;;
+            l)
+                log_to_file=1
+                ;;
+            c)
+                rm -f currE deltaE rms_force max_force max_step rms_step
+                echo -e "\033[32mAll done!\033[0m"
+                exit 0
+                ;;
+            w)
+                use_wb=1
+                ;;
+            a)
+                use_ascii=1
+                ;;
+            h)
+                echo "Usage: aopt [[-i] <aop file>] [OPTION]..."
+                echo "[OPTION]: "
+                echo "-i: specify aop file name."
+                echo "-l: log data to files."
+                echo "-c: clean all file generated by aopt."
+                echo "-w: do not emit color codes in output"
+                echo "-a: use ascii characters only"
+                echo "-h: show this message then exit."
+                exit 0
+                ;;
+            ?)
+                echo "try \`aopt -h' for for more information."
+                exit 0
+                ;;
+            esac
+        done
+        if [ -z "$flag" ] && [ "$#" -eq 1 ] ;then
+            filename="$1"
+        fi
+    fi
+    if [ -n "$use_ascii" ] ;then
+        SYM_YES="Y"
+        SYM_NO="N"
+    else
+        SYM_YES="✔"
+        SYM_NO="✘"
+    fi
+    if [ -n "$use_wb" ] ;then
+        if [ -z "$filename" ] ;then
+            echo -e "No file specified!" >&2
+            echo "try \`aopt -h' for for more information."
+            exit 1
+        fi
+        echo
+        test_aop_wb "$filename"
+        extract_info_wb "$filename" "$log_to_file"
+        echo
+        echo -e "All done!"
+    else
+        if [ -z "$filename" ] ;then
+            echo -e "\033[31mNo file specified!\033[0m" >&2
+            echo "try \`aopt -h' for for more information."
+            exit 1
+        fi
+        echo
+        test_aop "$filename"
+        extract_info "$filename" "$log_to_file"
+        echo
+        echo -e "\033[32mAll done!\033[0m"
+    fi
+}
+
+main "$@"

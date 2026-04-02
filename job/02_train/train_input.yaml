@@ -1,0 +1,12 @@
+data_args: { batch_size: 1,group_batch: 16}
+fit_elem: true
+model_args:
+  actv_fn: gelu
+  elem_table: null
+  embedding: {embd_sizes: null, init_beta: 5, type: thermal}
+  hidden_sizes: [108, 108, 108]
+  output_scale: 100
+  use_resnet: true
+preprocess_args: {prefit_ridge: 10.0, prefit_trainable: false, prescale: false, preshift: true}
+train_args: {decay_rate: 0.96, decay_steps: 1000, display_epoch: 1, n_epoch: 100,
+  start_lr: 0.0001,force_factor: 0}

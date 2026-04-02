@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# Written by Lazemare. Used to extract optimization trajectory
+# from an aop file. If you would like to change default file names,
+# change `trajfile' and `finalconf'.
+
+# Output file name
+trajfile="traj.xyz"
+finalconf="opted.xyz"
+
+# Test aop file.
+test_aop(){
+    filesize=$(stat -c %s "$1" 2>&1 | tr -d '\n')
+    if [ "${filesize:0:4}" == "stat" ] ;then
+        echo -e "\033[31m${filesize##*"stat: "}\033[0m" >&2
+        exit 1
+    elif [ "$filesize" == 0 ] ;then
+        echo -e "\033[31mfile $1 is empty!\033[0m" >&2
+        exit 1
+    fi
+    is_opt_task=$(grep "Geometry Optimization" "$1")
+    if [ -z "$is_opt_task" ] ;then
+        echo -e "\033[31mNot an optimization task!\033[0m" >&2
+        exit 1
+    else
+        steps=$(grep "Geometry Optimization Converged after" "$1" |
+            awk '{printf($5"\n")}' )
+        if [ "$steps" -eq 0 ] ;then
+            echo -e "\033[31mGeometry optimization did not converge!\033[0m"
+        else
+            echo -e "\033[36mOptimization converged after $steps steps.\033[0m"
+        fi
+    fi
+}
+
+# Get atom number.
+get_atom_number() {
+    xyz_block_start=$(sed -n '/>xyz/I=' "$1" | head -n 1)
+    total_line_num=$(wc -l < "$1")
+    natom=$(($(tail "$1" -n $((total_line_num - xyz_block_start)) |
+        sed -n '/end/I=' | head -n 1) - 1))
+    return "$natom"
+}
+
+# Extract conformations and energies then write to trajectory file.
+# param 1: aop file, param 2: traj file, param 3: natom.
+extract_conf_energy() {
+    echo -e "o2x starting ..."
+    nconfs=$(sed -n '/Current Geometry(angstroms):/=' "$1" | wc -l)
+    conf_pos=()
+    while IFS='' read -r line; do
+        conf_pos+=("$line");
+    done < <(sed -n '/Current Geometry(angstroms):/=' "$1")
+    energy=()
+    while IFS='' read -r line; do
+        energy+=("$line");
+    done < <(grep "Current Energy :" "$1" | awk '{printf($4"\n")}')
+    for ((i=0; i<"$nconfs"; i++))
+    do
+        conf=$(head -n $((conf_pos[i] + $3 + 1)) "$1" | tail -n "$3")
+        {
+            echo "$3"
+            echo "Energy: ${energy[i]} Hartree"
+            echo "$conf"
+        } >> "$2"
+    done
+}
+
+# Main
+main() {
+    if [ -z "$1" ] ;then
+        echo "Usage: o2x [[-i] <aop file>] [OPTION]..."
+        echo "try \`o2x -h' for for more information."
+        exit 0
+    else
+        while getopts "i:h" opt; do
+            flag=1
+            case "${opt}" in
+            i)
+                filename=${OPTARG}
+                ;;
+            h)
+                printf "o2x: extract optimization trajectory "
+                printf "from aop file, which must contain a geometry"
+                printf " optimization task\n"
+                echo "Usage: o2x [[-i] <aop file>] [OPTION]..."
+                echo "[OPTION]: "
+                echo "-i: specify aop file name."
+                echo "-h: show this message then exit."
+                exit 0
+                ;;
+            ?)
+                echo "try \`o2x -h' for for more information."
+                exit 0
+                ;;
+            esac
+        done
+        if [ -z "$flag" ] && [ "$#" -eq 1 ] ; then
+            filename="$1"
+        fi
+    fi
+    test_aop "$filename"
+    get_atom_number "$filename"
+    rm -f "$trajfile" "$finalconf"
+    extract_conf_energy "$filename" "$trajfile" "$natom"
+    tail -n $((natom + 2)) "$trajfile" > "$finalconf"
+    echo -e "\033[32mAll done!\033[0m"
+}
+
+main "$@"

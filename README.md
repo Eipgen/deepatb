@@ -1,4 +1,4 @@
-# DeePaTB
+# DeePaTB: A Deep Learning-Powered Semi-Empirical Quantum Mechanical Method
 
 ## Install Manual 
 
@@ -62,4 +62,19 @@ sh train.sh
 
 # Calculate predicted energies using the trained DeePaTB model
 python get_deepatb_energy.py
+```
+
+## a easy path to `dm_eig` but only use new Amesp
+```
+! aTB
+>ope
+deephf on
+end
+>xyz 0 1
+C      -4.602780000000000      2.228670000000000      0.000000000000000
+H      -3.532780000000000      2.228670000000000      0.000000000000000
+H      -4.959440000000000      1.272170000000000      0.320630000000000
+H      -4.959440000000000      2.429240000000000     -0.988670000000000
+H      -4.959440000000000      2.984590000000000      0.668030000000000
+end
 ```
