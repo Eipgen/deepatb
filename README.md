@@ -4,7 +4,7 @@
 
 ### Requirements
 First, you need to install Amesp. You can download it from the official website: https://www.amesp.xyz/download/. We also provide a compatible version of Amesp for your convenience.  
-We **strongly recommend** using `python==3.9.0` to ensure optimal compatibility.
+We **strongly recommend** using `python==3.9.0` to ensure optimal compatibility. and the datasets in https://zenodo.org/records/19156102
 
 #### Step 1: Configure Amesp and Python environment
 ```bash
